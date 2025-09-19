@@ -1,25 +1,77 @@
+# GrATS-XAI: Graph-based Attributions for Time Series Explainability
+GrATS-XAI introduces a framework for graph-based attributions in time series models, bridging saliency methods to graphs. By using the post-hoc explainers to generate a structured graph, it enables understanding and evaluation of feature intreaction and relevance in temporal modelling.
 
-# xai_graphs (starter)
+---
 
-Minimal, modular starter to study **post-hoc temporal XAI → graph construction → graph-refined attributions**.
+## 📦 Installation
 
-## Layout
-```
-xai_graphs/
-  datasets/synthetic_var.py
-  models/simple_lstm.py
-  explainers/ig_wrapper.py
-  explainers/time_rise.py
-  graphs/interaction_shapley.py
-  graphs/laplacian_refine.py
-  evaluation/metrics.py
-  main.py
-  requirements.txt
-```
-## Quickstart
+Clone and set up the environment:
+
 ```bash
-python -m venv .venv && source .venv/bin/activate
+git clone https://github.com/<your-username>/grats-xai.git
+cd grats-xai
+
+# Create conda environment
+conda create -n grats python=3.9 -y
+conda activate grats
+
+# Install requirements
 pip install -r requirements.txt
-python main.py --seed 0 --n_series 256 --T 80 --D 6
+
 ```
-This will: (1) generate a synthetic nonlinear VAR dataset with a **known ground-truth graph**, (2) train a tiny LSTM classifier, (3) compute **Integrated Gradients** attributions, (4) estimate **pairwise interactions** with a Shapley-style sampler on top-k nodes, (5) build a sparse graph, and (6) run **Laplacian refinement** to produce structure-aware heatmaps and basic metrics.
+
+
+## Project Structure
+
+├── configs/               # YAML configs for data generation & experiments
+│   └── data_gen.yaml
+├── src/
+│   ├── datasets/          # Synthetic DBN generator
+│   │   └── synthetic_dbn.py
+│   ├── models/            # Simple baselines (e.g. LSTM)
+│   │   └── simple_lstm.py
+│   ├── explainers/        # Explainability methods (IG, TimeRISE, etc.)
+│   └── evaluation/        # Metrics (infidelity, comprehensiveness, etc.)
+├── runs/                  # Auto-saved experiments (ignored via .gitignore)
+└── README.md
+
+
+
+
+## 🚀 Usage
+### 1. Generate synthetic data
+
+Datasets are generated using configs/data_gen.yaml.
+This produces .pkl train/val splits with balanced class labels.
+
+
+```
+python src/datasets/synthetic_dbn.py --config configs/data_gen.yaml
+```
+
+Outputs are saved under:
+
+runs/dbn_n{params}/
+  ├── train.pkl
+  ├── val.pkl
+  └── plots/
+
+### 2. Train a model
+
+Example with LSTM:
+```
+python script/train_clasifier,py --config configs/train.yaml
+```
+
+### 3. Run explainability
+
+Choose an explainer:
+
+--method ig       # Integrated Gradients
+--method timerise # TimeRISE
+// TODO:
+  Integrated Hessians
+
+## 📊 Example Output
+
+
