@@ -1,0 +1,41 @@
+# Default experiment config for synthetic DBN generation
+
+# Global parameters
+name: syn_dbn
+noise: normal   # normal | exp
+eta: 1.5        # exponential decay parameter for inter-slice weights
+seed: 0
+model_intra: ER
+model_inter: ER
+
+# Experiment sweeps
+experiments:
+  - n: 500
+    d: 5
+    p: 3
+    k_intra: 4
+    k_inter: 1
+
+  - n: 50
+    d: 10
+    p: 1
+    k_intra: 4
+    k_inter: 1
+
+  - n: 500
+    d: 20
+    p: 1
+    k_intra: 4
+    k_inter: 1
+
+  - n: 500
+    d: 50
+    p: 1
+    k_intra: 4
+    k_inter: 1
+
+  - n: 500
+    d: 100
+    p: 1
+    k_intra: 4
+    k_inter: 1
