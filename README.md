@@ -1,5 +1,5 @@
 # GrATS-XAI: Graph-based Attributions for Time Series Explainability
-GrATS-XAI introduces a framework for graph-based attributions in time series models, bridging saliency methods to graphs. By using the post-hoc explainers to generate a structured graph, it enables understanding and evaluation of feature intreaction and relevance in temporal modelling.
+GrATS-XAI introduces a framework for graph-based attributions in time series models, bridging saliency methods to graphs. By using the post-hoc explainers to generate a structured graph, it enables understanding and evaluation of feature interaction and relevance in temporal modelling.
 
 ---
 
@@ -23,6 +23,7 @@ pip install -r requirements.txt
 
 ## Project Structure
 
+```
 ├── configs/               # YAML configs for data generation & experiments
 │   └── data_gen.yaml
 ├── src/
@@ -34,7 +35,7 @@ pip install -r requirements.txt
 │   └── evaluation/        # Metrics (infidelity, comprehensiveness, etc.)
 ├── runs/                  # Auto-saved experiments (ignored via .gitignore)
 └── README.md
-
+```
 
 
 
@@ -51,11 +52,12 @@ python src/datasets/synthetic_dbn.py --config configs/data_gen.yaml
 
 Outputs are saved under:
 
+```
 runs/dbn_n{params}/
   ├── train.pkl
   ├── val.pkl
   └── plots/
-
+```
 ### 2. Train a model
 
 Example with LSTM:
