@@ -17,5 +17,10 @@ def integrated_gradients(model, x, target=None, baseline='zero', steps=32):
         baseline_t = torch.randn_like(x)*0.0
     ig = IntegratedGradients(model)
     target_idx = int(target) if target is not None else None
-    attr = ig.attribute(x, baselines=baseline_t, target=target_idx, n_steps=steps)
+    # attr = ig.attribute(x, baselines=baseline_t, target=target_idx, n_steps=steps)
+
+
+    with torch.backends.cudnn.flags(enabled=False):
+        attr = ig.attribute(x, baselines=baseline_t, target=target_idx, n_steps=steps)
+        
     return attr[0].detach().cpu().numpy()
