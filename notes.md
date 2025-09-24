@@ -20,9 +20,11 @@ We simulate **Dynamic Bayesian Networks (DBNs)** with intra- and inter-slice dep
 
 - **SEM Simulation**:  
   For sequence length \( T \):
+  
   $$
   x_t = x_t W + \sum_{\ell=1}^p x_{t-\ell} A^{(\ell)} + \varepsilon_t,
   $$
+  
   where \( \varepsilon_t \sim \mathcal{N}(0, I) \) (or exponential noise).
 
 Each dataset is saved in **`data/`** as `train.pkl` and `val.pkl`, containing \( X \in \mathbb{R}^{N \times T \times D} \), labels \( y \), and adjacency matrices.
@@ -65,7 +67,13 @@ Given base attributions \( A \), we estimate **pairwise feature interactions**:
 - **Asymmetric Interaction Response**:
   perturbs pairs of nodes across time lags and measures marginal impact on prediction.
 
-- Produces \( \hat{W} \in \mathbb{R}^{D \times D \times L} \), stored in `runs/.../graph/`.
+Produces 
+
+$$ 
+\hat{W} \in \mathbb{R}^{D \times D \times L} 
+$$
+
+, stored in `runs/.../graph/`.
 
 ---
 
