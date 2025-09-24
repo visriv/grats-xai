@@ -1,0 +1,75 @@
+# ============================
+# Pipeline config for GrATS-XAI
+# ============================
+name: syn_dbn_pipeline
+seed: 0
+noise: normal   # "normal" | "exp"
+eta: 1.5
+model_intra: ER
+model_inter: ER
+max_eval_samples: 50 
+
+data:
+  experiments:  
+    - {num_samples: 1000, n: 500, d: 5,   p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 500, d: 10,  p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 500, d: 20,  p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 500, d: 50,  p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 500, d: 100, p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 50, d: 5,   p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 50, d: 10,  p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 50, d: 20,  p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 50, d: 50,  p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 50, d: 100, p: 3, k_intra: 4, k_inter: 1}
+
+
+models:
+  - name: LSTM
+    hidden: 64
+    epochs: 40
+    batch_size: 32
+    lr: 0.001
+
+  # - name: TCN
+  #   hidden: 64
+  #   epochs: 8
+  #   batch_size: 32
+  #   lr: 0.001
+
+  # - name: Transformer
+  #   hidden: 128
+  #   n_heads: 4
+  #   batch_size: 32
+  #   n_layers: 2
+  #   epochs: 8
+  #   lr: 0.001
+
+# ----------------------------
+# Explainers (sweep)
+# ----------------------------
+explainers:
+  - name: IG
+    steps: 32
+  # - name: TimeRISE
+  #   n_masks: 128
+  #   p_keep: 0.2
+
+# ----------------------------
+# Interaction estimation
+# ----------------------------
+interactions:
+  lags: [3, 4]   # allowed lags
+  rho: 1.0          # scaling factor
+  S: 8              # number of perturbations per interaction
+
+# ----------------------------
+# Graph refinement
+# ----------------------------
+refinement:
+  lambda: 0.3       # Laplacian smoothness parameter
+
+# ----------------------------
+# Metrics
+# ----------------------------
+metrics:
+  aopc_ks: [5, 10, 20, 30, 50]   # top-k sizes for comp/suff

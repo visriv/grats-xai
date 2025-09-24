@@ -1,0 +1,60 @@
+# ============================
+# Minimal pipeline config (debug)
+# ============================
+
+# Global settings
+name: syn_dbn_pipeline_min
+noise: normal
+eta: 1.5
+seed: 42
+max_eval_samples: 5        # only evaluate 5 validation samples
+
+# ----------------------------
+# Dataset (single small case)
+# ----------------------------
+data:
+  experiments:
+    - n: 50
+      d: 5
+      p: 1
+      k_intra: 3
+      k_inter: 1
+
+# ----------------------------
+# Model (just LSTM, small hidden size)
+# ----------------------------
+models:
+  - name: LSTM
+    hidden: 32
+    epochs: 3
+    lr: 0.001
+
+# ----------------------------
+# Explainer (just IG, few steps)
+# ----------------------------
+explainers:
+  - name: IG
+    steps: 8
+
+# ----------------------------
+# Interaction estimation
+# ----------------------------
+interactions:
+  lags: [0, 1]
+  rho: 1.0
+  S: 2
+
+# ----------------------------
+# Graph refinement
+# ----------------------------
+refinement:
+  lambda: 0.1
+
+# ----------------------------
+# Metrics
+# ----------------------------
+metrics:
+  aopc_ks: [5]
+
+
+
