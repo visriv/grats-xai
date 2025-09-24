@@ -45,7 +45,7 @@ def generate_intra_slice(d, k=2, model="ER", seed=0):
         W[mask] = weights
     else:
         label = 0
-    return W, label
+    return W, label # W is d x d
 
 
 # ---------- Inter-slice DAGs ----------
@@ -72,7 +72,7 @@ def generate_inter_slice(d, k=2, p=1, model="ER", eta=1, seed=0):
             rng.shuffle(weights)
             A[mask] = weights
         A_list.append(A)
-    return A_list
+    return A_list # p x d x d
 
 
 # ---------- SEM Simulation ----------
@@ -96,8 +96,8 @@ def simulate_sem(n, d, W, A_list, noise="normal", seed=0):
     return X
 
 
-# ---------- Full dataset ----------
-def generate_dataset(num_samples=100, T=50, d=5, p=1,
+# ---------- Full dataset (N sequences) ----------
+def generate_dataset(num_samples=200, T=500, d=5, p=1,
                      k_intra=2, k_inter=1,
                      model_intra="ER", model_inter="ER",
                      noise="normal", eta=1.0, seed=0):
@@ -113,26 +113,22 @@ def generate_dataset(num_samples=100, T=50, d=5, p=1,
     Returns:
       X: (num_samples, T, d)
       y: (num_samples,)
-      W_list: list of intra-slice adjacency (per sample)
-      A_all: list of inter-slice adjacencies (per sample)
+      W: intra-slice adjacency
+      A_all: list of inter-slice adjacencies  (p x d x d)
     """
-    rng = np.random.default_rng(seed)
-    X_list, y_list, W_list, A_all = [], [], [], []
 
-    for i in range(num_samples):
-        W, label = generate_intra_slice(d, k=k_intra,
-                                        model=model_intra, seed=seed+i)
-        A_list = generate_inter_slice(d, k=k_inter, p=p,
-                                      model=model_inter, eta=eta, seed=seed+1000+i)
-        Xi = simulate_sem(T, d, W, A_list, noise=noise, seed=seed+2000+i)
-        X_list.append(Xi)
-        y_list.append(label)
-        W_list.append(W)
-        A_all.append(A_list)
+    W, label = generate_intra_slice(d, k=k_intra, model=model_intra, seed=seed)
+    A_list = generate_inter_slice(d, k=k_inter, p=p,
+                                  model=model_inter, eta=eta, seed=seed + 1)
 
-    X = np.stack(X_list, axis=0)  # (N,T,D)
-    y = np.array(y_list, dtype=int)
-    return X, y, W_list, A_all
+    X_all = []
+    for n in range(num_samples):
+        X = simulate_sem(T, d, W, A_list, noise=noise, seed=seed + 2 + n)
+        X_all.append(X)
+    X_all = np.stack(X_all, axis=0)  # (N,T,D)
+    y = np.full((num_samples,), label, dtype=int)
+
+    return X_all, y, W, A_list
 
 
 

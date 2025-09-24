@@ -8,7 +8,7 @@ eta: 1.5
 model_intra: ER
 model_inter: ER
 max_eval_samples: 50 
-
+eval_batch_size: 32
 data:
   experiments:  
     - {num_samples: 1000, n: 500, d: 5,   p: 3, k_intra: 4, k_inter: 1}

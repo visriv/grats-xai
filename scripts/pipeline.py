@@ -72,9 +72,9 @@ def run_pipeline(cfg_path):
             with open(va_pkl, "rb") as f: val   = pickle.load(f)
             X_all = np.concatenate([train["X"], val["X"]], axis=0)
             y_all = np.concatenate([train["y"], val["y"]], axis=0)
-            W_list = train["W_list"]; A_lags_all = train["A_lags_all"]
+            W_true = train["W_true"]; A_lags_all = train["A_lags_all"]
         else:
-            X_all, y_all, W_list, A_lags_all = generate_dataset(
+            X_all, y_all, W_true, A_lags_all = generate_dataset(
                 num_samples=exp.get("num_samples", 200),
                 T=exp["n"], d=exp["d"], p=exp["p"],
                 k_intra=exp["k_intra"], k_inter=exp["k_inter"],
@@ -86,8 +86,8 @@ def run_pipeline(cfg_path):
                 X_all, y_all, test_size=0.2,
                 random_state=CFG.get("seed", 0), stratify=y_all
             )
-            save_pickle(tr_pkl, {"X": Xtr, "y": ytr, "W_list": W_list, "A_lags_all": A_lags_all})
-            save_pickle(va_pkl, {"X": Xva, "y": yva, "W_list": W_list, "A_lags_all": A_lags_all})
+            save_pickle(tr_pkl, {"X": Xtr, "y": ytr, "W_true": W_true, "A_lags_all": A_lags_all})
+            save_pickle(va_pkl, {"X": Xva, "y": yva, "W_true": W_true, "A_lags_all": A_lags_all})
             train, val = {"X": Xtr, "y": ytr}, {"X": Xva, "y": yva}
             # end dataset
             log.info(f"[dataset] ready: {ds_name} | train {len(train['X'])} | val {len(val['X'])}")
@@ -125,116 +125,127 @@ def run_pipeline(cfg_path):
                 torch.save(model.state_dict(), model_ckpt)
                 log.info(f"[model] saved checkpoint to {model_ckpt}")
 
-
             for ecfg in expl_sweep:
                 expl_name = ecfg["name"]
                 run_dir   = ensure_dir(os.path.join(model_dir, expl_name))
                 attr_dir  = ensure_dir(os.path.join(run_dir, "attr"))
                 graph_dir = ensure_dir(os.path.join(run_dir, "graph"))
                 metr_dir  = ensure_dir(os.path.join(run_dir, "metrics"))
+                plot_dir  = ensure_dir(os.path.join(run_dir, "plots"))
 
                 metr_file = os.path.join(metr_dir, "metrics.json")
                 if os.path.isfile(metr_file):
                     log.info(f"[skip] {ds_name} | {model_name} | {expl_name} already done.")
                     continue
 
-                ## Computation
-                idxs = np.arange(min(len(Xva), CFG.get("max_eval_samples", len(Xva))))
-                log.info(f"[explainer] running {expl_name} on {len(idxs)} validation samples")
+                # ------------------ batch eval config ------------------
+                max_eval = int(CFG.get("max_eval_samples", len(Xva)))
+                idxs     = np.arange(min(len(Xva), max_eval))
+                eval_bs  = int(CFG.get("eval_batch_size", 128))
+                viz_k    = int(CFG.get("viz_k", 6))
+                log.info(f"[explainer] {expl_name}: evaluating {len(idxs)} samples in batches of {eval_bs}")
 
-                W_per_sample = []   # <-- collect per-sample What for global aggregation
-                metrics_list = []
+                # (N_eval, D, T) on device
+                X_eval = torch.from_numpy(Xva[idxs]).float().to(device)
 
-                for i in tqdm(idxs, desc=f"iterating over val samples: {ds_name}|{model_name}|{expl_name}"):
+                # 1) forward once to get predicted targets per sample
+                with torch.no_grad():
+                    logits  = model(X_eval)                         # (N_eval, C)
+                    targets = logits.argmax(dim=1)                  # (N_eval,)
+                    base_p  = torch.softmax(logits, dim=1)
 
-                    x = torch.from_numpy(Xva[i:i+1]).float()
-                    yhat = model(x.to(device)).argmax(dim=1).item()
+                # 2) Integrated Gradients for the whole set (in chunks)
+                steps = int(ecfg.get("steps", 32))
+                attr_chunks = []
+                for s in tqdm(range(0, len(idxs), eval_bs), desc=f"IG {expl_name}", leave=False):
+                    xb = X_eval[s:s+eval_bs]                        # (b, D, T)
+                    tb = targets[s:s+eval_bs]                       # (b,)
+                    attr_b = integrated_gradients(model, xb, target=tb, steps=steps)  # (b, D, T)
+                    if isinstance(attr_b, torch.Tensor):
+                        attr_b = attr_b.detach().cpu().numpy()
+                    attr_chunks.append(attr_b)
+                attr_batch = np.concatenate(attr_chunks, axis=0)          # (N_eval, D, T)
 
-                    # Base attribution
-                    attr = integrated_gradients(model, x, target=yhat, steps=ecfg.get("steps",32))
-                    np.save(os.path.join(attr_dir, f"A_base_{i}.npy"), attr)
+                # Save compact attribution summary (mean/std) + plots
+                attr_mean = attr_batch.mean(axis=0)                       # (D, T)
+                attr_std  = attr_batch.std(axis=0)                        # (D, T)
+                np.savez(os.path.join(attr_dir, "attr_base_summary.npz"), mean=attr_mean, std=attr_std)
+                # plot_attribution(attr_mean, os.path.join(plot_dir, "attr_base_mean.png"), title="Attribution (mean over eval)")
+                # plot_attribution(attr_std,  os.path.join(plot_dir, "attr_base_std.png"),  title="Attribution (std over eval)")
 
-                    # log.info(f"[explainer] completed {expl_name} on this validation sample")
-                    # log.info(f"[Estimating graph] estimating W now")
+                # 3) GLOBAL lagged interactions from the whole eval set (vectorized)
+                # asymmetric_interaction_response expects:
+                #   x: torch.Tensor (B,D,T)   attr_batch: np.ndarray (B,D,T)   target: torch.LongTensor (B,)
+                W_hat_global = asymmetric_interaction_response(
+                    model,
+                    X_eval,                           # (N_eval, D, T) tensor on device
+                    attr_batch,                          # (N_eval, D, T) numpy
+                    targets,                          # (N_eval,) tensor on device
+                    lags=lags, rho=rho, S=S, device=device
+                )                                     # -> (D, D, L)
+                np.save(os.path.join(graph_dir, "W_hat_global.npy"), W_hat_global)
 
-                    # Graph interactions
-                    What_lag = asymmetric_interaction_response(model, x, attr, yhat, lags, rho, S, device)
-                    np.save(os.path.join(graph_dir, f"W_lag_{i}.npy"), What_lag)
-                    W_per_sample.append(What_lag)   # <-- collect for global
-
-
-
-
-
-                    # Laplacian refinement
-                    W_feat = What_lag.sum(axis=-1)
-                    att_ref = laplacian_refine_closed_form(attr, W_feat, lam)
-                    np.save(os.path.join(attr_dir, f"attr_refined_{i}.npy"), att_ref)
-
-                    # Save plots
-                    plot_dir = ensure_dir(os.path.join(run_dir, "plots"))
-                    plot_attribution(attr, os.path.join(plot_dir, f"attr_base_{i}.png"), title=f"attr base (sample {i})")
-                    plot_attribution(att_ref, os.path.join(plot_dir, f"attr_refined_{i}.png"), title=f"attr refined (sample {i})")
-
-                    # plot_graph(What_lag.sum(axis=-1), os.path.join(plot_dir, f"W_feat_{i}.png"), title=f"Feature graph (sample {i})")
-
-                    # Metrics
-                    A_true_lags_all = A_lags_all[i]
-                    gr = graph_recovery_metrics(What_lag, A_true_lags_all)
-                    ks = [k for k in ks_curve if k <= attr.size] or [min(10, attr.size)]
-                    cs_base = comp_suff_curves(model, x, yhat, attr, ks, device)
-                    cs_ref  = comp_suff_curves(model, x, yhat, att_ref, ks, device)
-
-                    # Graph recovery: Per-sample true vs estimated plot
-                    # plot_graph_comparison(
-                    #     What_lag, A_true_lags_all,
-                    #     os.path.join(plot_dir, f"graph_comp_{i}.png"),
-                    #     title=f"Graph recovery (sample {i})"
-                    # )
-
-                    metrics_list.append({
-                        "idx": i,
-                        "graph_recovery": gr,
-                        "comp_suff_base": cs_base,
-                        "comp_suff_ref": cs_ref
-                    })
-
-
-                # -------- GLOBAL aggregation over samples --------
-                # W_global (D,D,L) by mean-abs over the evaluated validation subset
-                W_global = _stack_mean_abs(W_per_sample)
-                np.save(os.path.join(graph_dir, "W_global.npy"), W_global)
-                
-                # Plot global feature graph (aggregate over lags)
+                # Plot global feature graph (sum over lags)
                 plot_graph(
-                    W_global.sum(axis=-1),
-                    os.path.join(plot_dir, "W_global_feat.png"),
+                    W_hat_global.sum(axis=-1),
+                    os.path.join(plot_dir, "W_hat_global_feat.png"),
                     title=f"Global Feature Graph ({expl_name})"
                 )
-                
-                # Aggregate ground truth across same subset
-                A_true_global_lags = _aggregate_true_lags(A_lags_all, idxs)
-                np.save(os.path.join(graph_dir, "A_true_global.npy"), np.stack(A_true_global_lags, axis=-1))
 
-                # Global graph recovery metrics
-                gr_global = graph_recovery_metrics(W_global, A_true_global_lags)
-                # Global figure: side-by-side True vs Estimated per lag
+                # 4) Aggregate ground truth across the same subset and compute global metrics
+                L_true = len(A_lags_all[0])
+                L_use  = min(L_true, W_hat_global.shape[-1])
+                print(len(A_lags_all))
+                print(A_lags_all[0].shape)
+                print(L_use)
+                print(len(idxs))
+                print('W_hat_global.shape:', W_hat_global.shape)
+                # print(A_lags_all[0][0].shape)
+
+                # A_true_global_lags = []
+                # for ell in range(L_use):
+                #     mats = [np.abs(A_lags_all[i][ell]) for i in idxs]        # list of (D,D)
+                #     A_true_global_lags.append(np.mean(np.stack(mats, 0), 0)) # (D,D)
+                # np.save(os.path.join(graph_dir, "A_true_global.npy"), np.stack(A_true_global_lags, axis=-1))
+
+                gr_global = graph_recovery_metrics(W_hat_global[:, :, :L_use], [W_true] + A_lags_all)
+
                 plot_graph_comparison(
-                    W_global, A_true_global_lags,
+                    W_hat_global[:, :, :L_use], [W_true] + A_lags_all,
                     os.path.join(plot_dir, "graph_comp_global.png"),
                     title=f"Graph recovery (GLOBAL)"
                 )
 
-                # per sample plot (not useful)
-                plot_dir = ensure_dir(os.path.join(run_dir, "plots"))
-                plot_graph_recovery_summary(metrics_list, os.path.join(plot_dir, "graph_recovery_summary.png"), expl_name)
+                # 5) Laplacian refinement of MEAN attribution using GLOBAL graph
+                W_feat_global = W_hat_global.sum(axis=-1)               # (D,D)
+                attr_ref_mean = laplacian_refine_closed_form(attr_mean, W_feat_global, lam)  # (D,T)
+                np.save(os.path.join(attr_dir, "attr_refined_mean.npy"), attr_ref_mean)
+                # plot_attribution(attr_ref_mean, os.path.join(plot_dir, "attr_refined_mean.png"),
+                #                 title="Attribution refined (mean)")
 
-                
-                # Save both per-sample and global metrics
+                # 6) Optional: a few example plots (base + refined via global graph)
+                if viz_k > 0:
+                    ex = idxs[:min(viz_k, len(idxs))]
+                    for j, i in enumerate(ex):
+                        Aj = attr_batch[j]  # j aligns with first 'viz_k' indices
+                        plot_attribution(Aj, os.path.join(plot_dir, f"attr_base_ex{i}.png"),
+                                        title=f"attr base (example {i})")
+                        attr_ref_j = laplacian_refine_closed_form(Aj, W_feat_global, lam)
+                        plot_attribution(attr_ref_j, os.path.join(plot_dir, f"attr_refined_ex{i}.png"),
+                                        title=f"attr refined (example {i})")
+
+                # 7) Save compact metrics (global only, no per-sample clutter)
+                ensure_dir(metr_dir)
                 with open(os.path.join(metr_dir, "metrics.json"), "w") as f:
                     json.dump({
-                        "per_sample": metrics_list,
-                        "global_graph_recovery": gr_global
+                        "global_graph_recovery": gr_global,
+                        "eval_samples": int(len(idxs)),
+                        "eval_batch_size": int(eval_bs),
+                        "lags_used": list(lags),
+                        "attr_summary": {
+                            "mean_path": "attr/attr_base_summary.npz",
+                            "refined_mean_path": "attr/attr_refined_mean.npy"
+                        }
                     }, f, indent=2, cls=NpEncoder)
 
                 log.info(f"[metrics] saved: {os.path.join(metr_dir, 'metrics.json')}")

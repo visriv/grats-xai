@@ -8,7 +8,7 @@ noise: normal
 eta: 1.5
 seed: 42
 max_eval_samples: 5        # only evaluate 5 validation samples
-
+eval_batch_size: 32
 # ----------------------------
 # Dataset (single small case)
 # ----------------------------
@@ -16,7 +16,7 @@ data:
   experiments:
     - n: 50
       d: 5
-      p: 1
+      p: 2
       k_intra: 3
       k_inter: 1
 
