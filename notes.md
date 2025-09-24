@@ -27,9 +27,9 @@ We simulate **Dynamic Bayesian Networks (DBNs)** with intra- and inter-slice dep
 - **SEM Simulation**:  
   For sequence length \( T \):
   
-  $$
-  x_t = x_t W + \sum_{\ell=1}^p x_{t-\ell} A^{(\ell)} + \varepsilon_t,
-  $$
+$$
+x_t = x_t W + \sum_{\ell=1}^p x_{t-\ell} A^{(\ell)} + \varepsilon_t,
+$$
   
   where \( \varepsilon_t \sim \mathcal{N}(0, I) \) (or exponential noise).
 
@@ -56,10 +56,9 @@ Training uses Adam optimizer with cross-entropy loss.
 We support multiple **attribution methods**:
 
 - **Integrated Gradients (IG)**:
-
-  $$
-  \text{IG}_i(x) = (x_i - x_i') \int_0^1 \frac{\partial f(x' + \alpha(x - x'))}{\partial x_i} d\alpha
-  $$
+$$
+\text{IG}_i(x) = (x_i - x_i') \int_0^1 \frac{\partial f(x' + \alpha(x - x'))}{\partial x_i} d\alpha
+$$
 
 - **TimeRISE** (randomized masking-based explainer).
 
