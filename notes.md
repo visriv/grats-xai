@@ -9,11 +9,17 @@ This document summarizes the data generation, pipeline methodology, and evaluati
 We simulate **Dynamic Bayesian Networks (DBNs)** with intra- and inter-slice dependencies.
 
 - **Intra-slice structure**:  
-  $$  W \in \mathbb{R}^{D \times D} $$ is a DAG within each time slice, with edges sampled from an Erdős–Rényi (ER) or Barabási–Albert (BA) model.  
+
+  $$
+  W \in \mathbb{R}^{D \times D}
+  $$
+
+  is a DAG within each time slice, with edges sampled from an Erdős–Rényi (ER) or Barabási–Albert (BA) model.  
   Edge weights are either positive (class 1) or negative (class 0), and the **label** for each sequence is determined by the sign of intra-slice edges.
 
 - **Inter-slice structure**:  
   For lag $$ \ell \in \{1, \dots, p\} $$,  
+
   $$
   A^{(\ell)} \in \mathbb{R}^{D \times D}, \quad A^{(\ell)}_{ij} \sim \text{Uniform}\big(\pm [0.3 \eta^{-\ell}, 0.5 \eta^{-\ell}] \big).
   $$
@@ -50,6 +56,7 @@ Training uses Adam optimizer with cross-entropy loss.
 We support multiple **attribution methods**:
 
 - **Integrated Gradients (IG)**:
+
   $$
   \text{IG}_i(x) = (x_i - x_i') \int_0^1 \frac{\partial f(x' + \alpha(x - x'))}{\partial x_i} d\alpha
   $$
