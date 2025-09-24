@@ -9,20 +9,20 @@ This document summarizes the data generation, pipeline methodology, and evaluati
 We simulate **Dynamic Bayesian Networks (DBNs)** with intra- and inter-slice dependencies.
 
 - **Intra-slice structure**:  
-  \( W \in \mathbb{R}^{D \times D} \) is a DAG within each time slice, with edges sampled from an Erdős–Rényi (ER) or Barabási–Albert (BA) model.  
+  $$  W \in \mathbb{R}^{D \times D} $$ is a DAG within each time slice, with edges sampled from an Erdős–Rényi (ER) or Barabási–Albert (BA) model.  
   Edge weights are either positive (class 1) or negative (class 0), and the **label** for each sequence is determined by the sign of intra-slice edges.
 
 - **Inter-slice structure**:  
-  For lag \( \ell \in \{1, \dots, p\} \),  
-  \[
+  For lag $$ \ell \in \{1, \dots, p\} $$,  
+  $$
   A^{(\ell)} \in \mathbb{R}^{D \times D}, \quad A^{(\ell)}_{ij} \sim \text{Uniform}\big(\pm [0.3 \eta^{-\ell}, 0.5 \eta^{-\ell}] \big).
-  \]
+  $$
 
 - **SEM Simulation**:  
   For sequence length \( T \):
-  \[
+  $$
   x_t = x_t W + \sum_{\ell=1}^p x_{t-\ell} A^{(\ell)} + \varepsilon_t,
-  \]
+  $$
   where \( \varepsilon_t \sim \mathcal{N}(0, I) \) (or exponential noise).
 
 Each dataset is saved in **`data/`** as `train.pkl` and `val.pkl`, containing \( X \in \mathbb{R}^{N \times T \times D} \), labels \( y \), and adjacency matrices.
@@ -48,9 +48,9 @@ Training uses Adam optimizer with cross-entropy loss.
 We support multiple **attribution methods**:
 
 - **Integrated Gradients (IG)**:
-  \[
+  $$
   \text{IG}_i(x) = (x_i - x_i') \int_0^1 \frac{\partial f(x' + \alpha(x - x'))}{\partial x_i} d\alpha
-  \]
+  $$
 
 - **TimeRISE** (randomized masking-based explainer).
 
@@ -73,16 +73,16 @@ Given base attributions \( A \), we estimate **pairwise feature interactions**:
 
 We refine base attributions via **graph Laplacian smoothing**:
 
-\[
+$$
 S^\ast = \arg\min_S \| S - A \|^2 + \lambda \, \text{Tr}(S^\top L S),
-\]
+$$
 
 where \( L \) is the normalized Laplacian of \( \hat{W} \).  
 Closed-form solution:
 
-\[
+$$
 S^\ast = (I + \lambda L)^{-1} A.
-\]
+$$
 
 ---
 
