@@ -11,16 +11,49 @@ max_eval_samples: 50
 eval_batch_size: 32
 data:
   experiments:  
+data:
+  experiments:
     - {num_samples: 1000, n: 500, d: 5,   p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 500, d: 5,   p: 3, k_intra: 4, k_inter: 2}
+    - {num_samples: 1000, n: 500, d: 5,   p: 3, k_intra: 8, k_inter: 1}
+    - {num_samples: 1000, n: 500, d: 5,   p: 3, k_intra: 8, k_inter: 2}
     - {num_samples: 1000, n: 500, d: 10,  p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 500, d: 10,  p: 3, k_intra: 4, k_inter: 2}
+    - {num_samples: 1000, n: 500, d: 10,  p: 3, k_intra: 8, k_inter: 1}
+    - {num_samples: 1000, n: 500, d: 10,  p: 3, k_intra: 8, k_inter: 2}
     - {num_samples: 1000, n: 500, d: 20,  p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 500, d: 20,  p: 3, k_intra: 4, k_inter: 2}
+    - {num_samples: 1000, n: 500, d: 20,  p: 3, k_intra: 8, k_inter: 1}
+    - {num_samples: 1000, n: 500, d: 20,  p: 3, k_intra: 8, k_inter: 2}
     - {num_samples: 1000, n: 500, d: 50,  p: 3, k_intra: 4, k_inter: 1}
-    - {num_samples: 1000, n: 500, d: 100, p: 3, k_intra: 4, k_inter: 1}
-    - {num_samples: 1000, n: 50, d: 5,   p: 3, k_intra: 4, k_inter: 1}
-    - {num_samples: 1000, n: 50, d: 10,  p: 3, k_intra: 4, k_inter: 1}
-    - {num_samples: 1000, n: 50, d: 20,  p: 3, k_intra: 4, k_inter: 1}
-    - {num_samples: 1000, n: 50, d: 50,  p: 3, k_intra: 4, k_inter: 1}
-    - {num_samples: 1000, n: 50, d: 100, p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 500, d: 50,  p: 3, k_intra: 4, k_inter: 2}
+    - {num_samples: 1000, n: 500, d: 50,  p: 3, k_intra: 8, k_inter: 1}
+    - {num_samples: 1000, n: 500, d: 50,  p: 3, k_intra: 8, k_inter: 2}
+    # - {num_samples: 1000, n: 500, d: 100, p: 3, k_intra: 4, k_inter: 1}
+    # - {num_samples: 1000, n: 500, d: 100, p: 3, k_intra: 4, k_inter: 2}
+    # - {num_samples: 1000, n: 500, d: 100, p: 3, k_intra: 8, k_inter: 1}
+    # - {num_samples: 1000, n: 500, d: 100, p: 3, k_intra: 8, k_inter: 2}
+    - {num_samples: 1000, n: 50,  d: 5,   p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 50,  d: 5,   p: 3, k_intra: 4, k_inter: 2}
+    - {num_samples: 1000, n: 50,  d: 5,   p: 3, k_intra: 8, k_inter: 1}
+    - {num_samples: 1000, n: 50,  d: 5,   p: 3, k_intra: 8, k_inter: 2}
+    - {num_samples: 1000, n: 50,  d: 10,  p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 50,  d: 10,  p: 3, k_intra: 4, k_inter: 2}
+    - {num_samples: 1000, n: 50,  d: 10,  p: 3, k_intra: 8, k_inter: 1}
+    - {num_samples: 1000, n: 50,  d: 10,  p: 3, k_intra: 8, k_inter: 2}
+    - {num_samples: 1000, n: 50,  d: 20,  p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 50,  d: 20,  p: 3, k_intra: 4, k_inter: 2}
+    - {num_samples: 1000, n: 50,  d: 20,  p: 3, k_intra: 8, k_inter: 1}
+    - {num_samples: 1000, n: 50,  d: 20,  p: 3, k_intra: 8, k_inter: 2}
+    - {num_samples: 1000, n: 50,  d: 50,  p: 3, k_intra: 4, k_inter: 1}
+    - {num_samples: 1000, n: 50,  d: 50,  p: 3, k_intra: 4, k_inter: 2}
+    - {num_samples: 1000, n: 50,  d: 50,  p: 3, k_intra: 8, k_inter: 1}
+    - {num_samples: 1000, n: 50,  d: 50,  p: 3, k_intra: 8, k_inter: 2}
+    # - {num_samples: 1000, n: 50,  d: 100, p: 3, k_intra: 4, k_inter: 1}
+    # - {num_samples: 1000, n: 50,  d: 100, p: 3, k_intra: 4, k_inter: 2}
+    # - {num_samples: 1000, n: 50,  d: 100, p: 3, k_intra: 8, k_inter: 1}
+    # - {num_samples: 1000, n: 50,  d: 100, p: 3, k_intra: 8, k_inter: 2}
+
 
 
 models:
@@ -50,15 +83,15 @@ models:
 explainers:
   - name: IG
     steps: 32
-  # - name: TimeRISE
-  #   n_masks: 128
-  #   p_keep: 0.2
+  - name: TimeRISE
+    n_masks: 128
+    p_keep: 0.2
 
 # ----------------------------
 # Interaction estimation
 # ----------------------------
 interactions:
-  lags: [3, 4]   # allowed lags
+  max_lag: 3        # max lag should be equal to p
   rho: 1.0          # scaling factor
   S: 8              # number of perturbations per interaction
 
@@ -72,4 +105,4 @@ refinement:
 # Metrics
 # ----------------------------
 metrics:
-  aopc_ks: [5, 10, 20, 30, 50]   # top-k sizes for comp/suff
+  auroc_ks: [5, 10, 20, 30, 50]   # top-k sizes for comp/suff

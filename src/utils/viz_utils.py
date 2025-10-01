@@ -62,8 +62,6 @@ def plot_graph_comparison(W_hat, W_true_list, save_path, title="Graph Recovery")
     L = min(L_pred, L_true)
 
     fig, axes = plt.subplots(2, L, figsize=(3*L, 6))
-    vmax1 = np.max([np.abs(A).max() for A in W_true_list]) + 1e-6
-    vmax2 = np.abs(W_hat).max() + 1e-6
 
     # Ensure axes is always 2D [2, L]
     if L == 1:
@@ -73,18 +71,50 @@ def plot_graph_comparison(W_hat, W_true_list, save_path, title="Graph Recovery")
 
     for lag in range(L):
         # True
+        vmax1 = np.abs(W_true_list[lag]).max() + 1e-6  # per subplot vmax
         sns.heatmap(W_true_list[lag], ax=axes[0, lag], cmap="RdBu_r", center=0,
-                    cbar=(lag==L-1), vmin=-vmax1, vmax=vmax1, annot=False)
-        axes[0, lag].set_title(f"True (lag {lag+1})")
+                    cbar=True, vmin=-vmax1, vmax=vmax1, annot=False,
+                    cbar_kws={"shrink": 0.8})  # individual colorbar
+        if lag == 0:
+            axes[0, lag].set_title(r"$W_{true," + str(lag) + "}$")
+        else:
+            axes[0, lag].set_title(r"$A_{true," + str(lag) + "}$")
 
         # Estimated
+        vmax2 = np.abs(W_hat[:, :, lag]).max() + 1e-6  # per subplot vmax
         sns.heatmap(W_hat[:, :, lag], ax=axes[1, lag], cmap="RdBu_r", center=0,
-                    cbar=(lag==L-1), vmin=-vmax2, vmax=vmax2, annot=False)
-        axes[1, lag].set_title(f"Estimated (lag {lag+1})")
+                    cbar=True, vmin=-vmax2, vmax=vmax2, annot=False,
+                    cbar_kws={"shrink": 0.8})  # individual colorbar
+        axes[1, lag].set_title(r"$\hat{W}_{" + str(lag) + "}$")
 
     axes[0, 0].set_ylabel("True")
     axes[1, 0].set_ylabel("Estimated")
     plt.suptitle(title, fontsize=14)
     plt.tight_layout()
     plt.savefig(save_path, dpi=200)
+    plt.close()
+
+
+# Function to plot AUROC drop vs top-K salient points
+def plot_auroc_drop(auroc_ks, auroc_drops, expl_name, plot_dir):
+    """
+    Plot AUROC drop vs Top-K salient points and save the plot.
+    
+    Args:
+        auroc_ks: List of top-K values.
+        auroc_drops: Corresponding AUROC drop values for each K.
+        expl_name: Explainer name (used for the plot title).
+        plot_dir: Directory to save the plot.
+    """
+    plt.figure(figsize=(8, 6))
+    plt.plot(auroc_ks, auroc_drops, marker='o', color='b', linestyle='-', linewidth=2)
+    plt.xlabel("Top-K salient points")
+    plt.ylabel("AUROC Drop")
+    plt.title(f"AUROC Drop after Occlusion - {expl_name}")
+    plt.grid(True)
+    plt.tight_layout()
+
+    # Save the plot
+    plot_file = os.path.join(plot_dir, f"auroc_drop_{expl_name}.png")
+    plt.savefig(plot_file, dpi=200)
     plt.close()

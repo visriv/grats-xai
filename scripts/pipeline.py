@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from src.utils.io_utils import set_seed, ensure_dir, save_pickle, save_json, NpEncoder
-from src.datasets.synthetic_dbn import load_or_generate_dataset, generate_dataset
+from src.datasets.synthetic_dbn import generate_dataset
 from src.utils.training import build_model, train_classifier
 from src.explainers.ig_wrapper import integrated_gradients
 from src.explainers.time_rise import random_mask_explainer
@@ -11,9 +11,8 @@ from src.graph_recovery.asym_interaction import asymmetric_interaction_response
 from src.graph_recovery.laplacian_refine import laplacian_refine_closed_form
 from src.metrics.graph_metrics import graph_recovery_metrics
 from src.metrics.faithfulness import comp_suff_curves
-from src.utils.viz_utils import plot_attribution, plot_graph, plot_graph_recovery_summary, plot_graph_comparison
-from src.utils.compute_utils import _aggregate_true_lags, _stack_mean_abs
-
+from src.utils.viz_utils import plot_attribution, plot_graph, plot_graph_recovery_summary, plot_graph_comparison, plot_auroc_drop
+from src.evaluation.metrics import evaluate_auroc_drop
 import numpy as np, torch, pickle, json
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
@@ -30,6 +29,11 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+EXPLAINER_REGISTRY = {
+    "ig": integrated_gradients,
+    "timerise": random_mask_explainer,
+    # add more here
+}
 
 def run_pipeline(cfg_path):
     with open(cfg_path, "r") as f:
@@ -48,7 +52,7 @@ def run_pipeline(cfg_path):
 
     noise = CFG.get("noise", "normal")
     eta   = float(CFG.get("eta", 1.0))
-    lags  = CFG.get("interactions", {}).get("lags", [0,1,2])
+    max_lag  = CFG.get("interactions", {}).get("max_lag", 2)
     rho   = float(CFG.get("interactions", {}).get("rho", 1.0))
     S     = int(CFG.get("interactions", {}).get("S", 1))
     lam   = float(CFG.get("refinement", {}).get("lambda", 0.3))
@@ -101,6 +105,20 @@ def run_pipeline(cfg_path):
         D, T = Xtr.shape[1], Xtr.shape[2]
         C = int(np.max(np.concatenate([ytr,yva])) + 1)
 
+
+
+        # Print class distribution for training and validation data
+        print("Class distribution in training data:")
+        train_classes, train_counts = np.unique(ytr, return_counts=True)
+        for cls, count in zip(train_classes, train_counts):
+            print(f"Class {cls}: {count} samples")
+
+        print("\nClass distribution in validation data:")
+        val_classes, val_counts = np.unique(yva, return_counts=True)
+        for cls, count in zip(val_classes, val_counts):
+            print(f"Class {cls}: {count} samples")
+
+
         for mcfg in model_sweep:
             model_name = mcfg["name"]
             model_dir  = ensure_dir(os.path.join(ds_run_dir, model_name))
@@ -126,7 +144,12 @@ def run_pipeline(cfg_path):
                 log.info(f"[model] saved checkpoint to {model_ckpt}")
 
             for ecfg in expl_sweep:
-                expl_name = ecfg["name"]
+                expl_name = ecfg["name"].lower()
+                if expl_name not in EXPLAINER_REGISTRY:
+                    raise ValueError(f"Unknown explainer: {expl_name}")
+                explainer_fn = EXPLAINER_REGISTRY[expl_name]
+                expl_kwargs = {k: v for k, v in ecfg.items() if k != "name"}
+
                 run_dir   = ensure_dir(os.path.join(model_dir, expl_name))
                 attr_dir  = ensure_dir(os.path.join(run_dir, "attr"))
                 graph_dir = ensure_dir(os.path.join(run_dir, "graph"))
@@ -154,13 +177,13 @@ def run_pipeline(cfg_path):
                     targets = logits.argmax(dim=1)                  # (N_eval,)
                     base_p  = torch.softmax(logits, dim=1)
 
-                # 2) Integrated Gradients for the whole set (in chunks)
+                # 2) Explanation for the whole set (in chunks)
                 steps = int(ecfg.get("steps", 32))
                 attr_chunks = []
-                for s in tqdm(range(0, len(idxs), eval_bs), desc=f"IG {expl_name}", leave=False):
+                for s in tqdm(range(0, len(idxs), eval_bs), desc=f" {expl_name}", leave=False):
                     xb = X_eval[s:s+eval_bs]                        # (b, D, T)
                     tb = targets[s:s+eval_bs]                       # (b,)
-                    attr_b = integrated_gradients(model, xb, target=tb, steps=steps)  # (b, D, T)
+                    attr_b = explainer_fn(model, xb, target=tb, **expl_kwargs) # (b, D, T)
                     if isinstance(attr_b, torch.Tensor):
                         attr_b = attr_b.detach().cpu().numpy()
                     attr_chunks.append(attr_b)
@@ -170,9 +193,32 @@ def run_pipeline(cfg_path):
                 attr_mean = attr_batch.mean(axis=0)                       # (D, T)
                 attr_std  = attr_batch.std(axis=0)                        # (D, T)
                 np.savez(os.path.join(attr_dir, "attr_base_summary.npz"), mean=attr_mean, std=attr_std)
-                # plot_attribution(attr_mean, os.path.join(plot_dir, "attr_base_mean.png"), title="Attribution (mean over eval)")
-                # plot_attribution(attr_std,  os.path.join(plot_dir, "attr_base_std.png"),  title="Attribution (std over eval)")
 
+
+                # 2.1) ------------------ AUROC Drop Evaluation ------------------
+                # Read the auroc_ks from the config
+                auroc_ks = ecfg.get("auroc_ks", [5, 10, 20, 30, 50])
+
+                # Define the file path to save AUROC drop results
+                auroc_drop_file = os.path.join(attr_dir, "auroc_drop.npy")  # or .pkl
+
+                # Check if the file already exists, and skip evaluation if it does
+                if os.path.isfile(auroc_drop_file):
+                    print(f"[skip] AUROC drop already evaluated for {expl_name}. Loading existing results.")
+                    auroc_drops = np.load(auroc_drop_file)  # or pickle.load for .pkl
+                else:
+                    # Evaluate AUROC drop after occluding top-K salient points
+                    auroc_drops = evaluate_auroc_drop(model, X_eval, targets.cpu().numpy(), explainer_fn, expl_kwargs, auroc_ks)
+
+                    # Save AUROC drops to file (as .npy or .pkl)
+                    np.save(auroc_drop_file, auroc_drops)  # Or use pickle.dump for .pkl
+                    print(f"[saved] AUROC drop results for {expl_name} saved to {auroc_drop_file}")
+
+                # Plot the AUROC drop vs. top-K
+                plot_auroc_drop(auroc_ks, auroc_drops, expl_name, plot_dir)
+
+
+                
                 # 3) GLOBAL lagged interactions from the whole eval set (vectorized)
                 # asymmetric_interaction_response expects:
                 #   x: torch.Tensor (B,D,T)   attr_batch: np.ndarray (B,D,T)   target: torch.LongTensor (B,)
@@ -181,8 +227,8 @@ def run_pipeline(cfg_path):
                     X_eval,                           # (N_eval, D, T) tensor on device
                     attr_batch,                          # (N_eval, D, T) numpy
                     targets,                          # (N_eval,) tensor on device
-                    lags=lags, rho=rho, S=S, device=device
-                )                                     # -> (D, D, L)
+                    max_lag=max_lag, rho=rho, S=S, device=device
+                )                                     # -> (D, D, L) (ensure that max_lag should be p, hence L = p+1)
                 np.save(os.path.join(graph_dir, "W_hat_global.npy"), W_hat_global)
 
                 # Plot global feature graph (sum over lags)
@@ -193,13 +239,14 @@ def run_pipeline(cfg_path):
                 )
 
                 # 4) Aggregate ground truth across the same subset and compute global metrics
+                # TODO: redundant code here
                 L_true = len(A_lags_all[0])
                 L_use  = min(L_true, W_hat_global.shape[-1])
-                print(len(A_lags_all))
-                print(A_lags_all[0].shape)
-                print(L_use)
-                print(len(idxs))
-                print('W_hat_global.shape:', W_hat_global.shape)
+                # print(len(A_lags_all))
+                # print(A_lags_all[0].shape)
+                # print(L_use)
+                # print(len(idxs))
+                # print('W_hat_global.shape:', W_hat_global.shape)
                 # print(A_lags_all[0][0].shape)
 
                 # A_true_global_lags = []
@@ -241,7 +288,7 @@ def run_pipeline(cfg_path):
                         "global_graph_recovery": gr_global,
                         "eval_samples": int(len(idxs)),
                         "eval_batch_size": int(eval_bs),
-                        "lags_used": list(lags),
+                        "lags_used": list(range(max_lag+1)),
                         "attr_summary": {
                             "mean_path": "attr/attr_base_summary.npz",
                             "refined_mean_path": "attr/attr_refined_mean.npy"

@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-def asymmetric_interaction_response(model, x, A, target, lags, rho=1.0, S=8, device="cpu"):
+def asymmetric_interaction_response(model, x, A, target, max_lag, rho=1.0, S=8, device="cpu"):
     """
     Estimate lagged directed interactions W_hat[p,q,ell].
     
@@ -10,7 +10,7 @@ def asymmetric_interaction_response(model, x, A, target, lags, rho=1.0, S=8, dev
         x      : torch.Tensor (B, D, T)
         A      : np.ndarray (B, D, T), base attribution
         target : np.ndarray (B,), class indices per sample
-        lags   : list[int], lag values to test
+        max_lag   : int, max lag value to test - hence lag \in [0, 1, 2, ..., max_lag]
         rho    : scaling factor
         S      : number of perturbation samples
     Returns:
@@ -20,7 +20,7 @@ def asymmetric_interaction_response(model, x, A, target, lags, rho=1.0, S=8, dev
     """
     model.eval()
     B, D, T = x.shape
-    L = max(lags) + 1
+    L = max_lag + 1
     W_hat = np.zeros((D, D, L))
     x = x.to(device)
 
@@ -28,7 +28,7 @@ def asymmetric_interaction_response(model, x, A, target, lags, rho=1.0, S=8, dev
         for q in range(D):
             if p == q:
                 continue
-            for ell in lags:
+            for ell in range(L):
                 vals = []
                 for s in range(S):
                     # mask for all batches, same shape as x

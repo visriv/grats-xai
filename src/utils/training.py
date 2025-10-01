@@ -68,8 +68,17 @@ def train_classifier(
                 Xva_t = torch.from_numpy(Xva).float().to(device)
                 yva_t = torch.from_numpy(yva).long().to(device)
                 logits = model(Xva_t)
+
+                # Predicted labels
                 preds = logits.argmax(dim=1).cpu().numpy()
-                probs = torch.softmax(logits, dim=1)[:, 1].cpu().numpy() if logits.shape[1] > 1 else None
+
+                # Predicted probabilities
+                if logits.shape[1] == 2:  # binary classification with 2 outputs
+                    probs = torch.softmax(logits, dim=1)[:, 1].cpu().numpy()
+                elif logits.shape[1] == 1:  # binary classification with single logit
+                    probs = torch.sigmoid(logits).cpu().numpy().ravel()
+                else:  # multi-class (keep full matrix if needed for other metrics)
+                    probs = None
 
             prec = precision_score(yva, preds, average="macro", zero_division=0)
             rec  = recall_score(yva, preds, average="macro", zero_division=0)

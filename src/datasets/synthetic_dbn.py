@@ -35,6 +35,7 @@ def generate_intra_slice(d, k=2, model="ER", seed=0):
     W = np.zeros_like(A)
     mask = A > 0
     n_edges = mask.sum()
+    
     if n_edges > 0:
         # choose either negative or positive class consistently
         label = rng.integers(0, 2)  # 0=negative class, 1=positive class
@@ -75,8 +76,21 @@ def generate_inter_slice(d, k=2, p=1, model="ER", eta=1, seed=0):
     return A_list # p x d x d
 
 
-# ---------- SEM Simulation ----------
-def simulate_sem(n, d, W, A_list, noise="normal", seed=0):
+# ---------- SEM Simulation (with optional change-point) ----------
+def simulate_sem(n, d, W, A_list, noise="normal", seed=0, change_point=None, alt_noise=None):
+    """
+    Simulate SEM with optional change-point in noise distribution.
+    
+    Args:
+      n : sequence length
+      d : number of variables
+      W : intra-slice adjacency (d x d)
+      A_list : list of inter-slice adjacencies (p x d x d)
+      noise : str, initial noise type ("normal" or "exp")
+      seed : int
+      change_point : int or None, index at which to switch noise regime
+      alt_noise : str or None, alternative noise type after change_point
+    """
     rng = np.random.default_rng(seed)
     p = len(A_list)
     X = np.zeros((n, d))
@@ -86,12 +100,20 @@ def simulate_sem(n, d, W, A_list, noise="normal", seed=0):
         xt += X[t] @ W
         for lag, A in enumerate(A_list, start=1):
             xt += X[t - lag] @ A
-        if noise == "normal":
+
+        # choose noise regime
+        if change_point is not None and t >= change_point and alt_noise is not None:
+            noise_type = alt_noise
+        else:
+            noise_type = noise
+
+        if noise_type == "normal":
             eps = rng.normal(0, 1, size=d)
-        elif noise == "exp":
+        elif noise_type == "exp":
             eps = rng.exponential(1, size=d)
         else:
             raise ValueError("noise must be 'normal' or 'exp'")
+
         X[t] = xt + eps
     return X
 
@@ -100,16 +122,15 @@ def simulate_sem(n, d, W, A_list, noise="normal", seed=0):
 def generate_dataset(num_samples=200, T=500, d=5, p=1,
                      k_intra=2, k_inter=1,
                      model_intra="ER", model_inter="ER",
-                     noise="normal", eta=1.0, seed=0):
+                     noise="normal", eta=1.0, seed=0,
+                     use_change_point=True):
     """
     Generate a dataset of multiple independent time series samples.
     Each sample is simulated from its own random DBN.
     
-    Args:
-      num_samples: number of sequences
-      T: sequence length
-      d: number of features
-      p: max lag
+    If use_change_point=True, half of the sequences will undergo a noise regime
+    switch at T/2 (e.g., normal -> exponential). Labels reflect presence (1) or absence (0) of change.
+    
     Returns:
       X: (num_samples, T, d)
       y: (num_samples,)
@@ -117,18 +138,35 @@ def generate_dataset(num_samples=200, T=500, d=5, p=1,
       A_all: list of inter-slice adjacencies  (p x d x d)
     """
 
-    W, label = generate_intra_slice(d, k=k_intra, model=model_intra, seed=seed)
+    # For simplicity, generate a single intra/inter DAG structure shared across samples
+    W, _ = generate_intra_slice(d, k=k_intra, model=model_intra, seed=seed)
     A_list = generate_inter_slice(d, k=k_inter, p=p,
                                   model=model_inter, eta=eta, seed=seed + 1)
 
-    X_all = []
+    X_all, y_all = [], []
     for n in range(num_samples):
-        X = simulate_sem(T, d, W, A_list, noise=noise, seed=seed + 2 + n)
+        rng = np.random.default_rng(seed + 2 + n)
+        
+        if use_change_point and n % 2 == 1:  # assign ~half samples to have change-points
+            cp = T // 2
+            X = simulate_sem(T, d, W, A_list, noise=noise,
+                             seed=seed + 2 + n,
+                             change_point=cp,
+                             alt_noise="exp" if noise == "normal" else "normal")
+            label = 1
+        else:
+            X = simulate_sem(T, d, W, A_list, noise=noise,
+                             seed=seed + 2 + n)
+            label = 0
+
         X_all.append(X)
+        y_all.append(label)
+
     X_all = np.stack(X_all, axis=0)  # (N,T,D)
-    y = np.full((num_samples,), label, dtype=int)
+    y = np.array(y_all, dtype=int)
 
     return X_all, y, W, A_list
+
 
 
 
@@ -139,104 +177,3 @@ def dataset_name(exp):
 def dataset_dir(root, exp):
     return os.path.join(root, dataset_name(exp))
 
-def load_or_generate_dataset(root_runs:str, exp:Dict, seed:int, noise:str, eta:float) -> Tuple[np.ndarray, np.ndarray, List[np.ndarray], List[List[np.ndarray]]]:
-    """
-    Expect sequences X: (N,T,D), labels y: (N,), W_list (per-sample intra), A_all (per-sample list of lag matrices).
-    If cached train/val exist, just return them joined (for metrics; we'll re-split for training).
-    """
-    ddir = dataset_dir(root_runs, exp)
-    tr_pkl = os.path.join(ddir, "train.pkl")
-    va_pkl = os.path.join(ddir, "val.pkl")
-    if os.path.isfile(tr_pkl) and os.path.isfile(va_pkl):
-        with open(tr_pkl, "rb") as f: train = pickle.load(f)
-        with open(va_pkl, "rb") as f: val = pickle.load(f)
-        X = np.concatenate([train["X"], val["X"]], axis=0)
-        y = np.concatenate([train["y"], val["y"]], axis=0)
-        W_list = train.get("W_list") or [train["W"]] * len(train["X"])
-        A_all  = train.get("A_all")  or [train["A_list"]] * len(train["X"])
-        return X, y, W_list, A_all
-    # Otherwise generate once using your generator script
-    X, y, W_list, A_all = generate_dataset(
-        num_samples=exp.get("num_samples", 200),  # default 200 sequences
-        T=exp["n"],                               # sequence length
-        d=exp["d"],
-        p=exp["p"],
-        k_intra=exp["k_intra"],
-        k_inter=exp["k_inter"],
-        model_intra=exp.get("model_intra","ER"),
-        model_inter=exp.get("model_inter","ER"),
-        noise=noise, eta=eta, seed=seed
-    )
-    y = np.full(shape=(X.shape[0],), fill_value=label, dtype=int)
-   # If your generator returns single W/A_list for the whole set, broadcast
-    if isinstance(W, np.ndarray) and W.ndim == 2:
-        W_list = [W] * X.shape[0]
-        A_all  = [A_list] * X.shape[0]
-    else:
-        W_list, A_all = W, A_list
-
-    # Cache as dataset/train|val.pkl
-    from sklearn.model_selection import train_test_split
-    Xtr, Xva, ytr, yva = train_test_split(X, y, test_size=0.2, random_state=seed, stratify=y)
-    ensure_dir(ddir)
-    save_pickle(os.path.join(ddir, "train.pkl"), {"X":Xtr, "y":ytr, "W_list":W_list, "A_all":A_all})
-    save_pickle(os.path.join(ddir, "val.pkl"),   {"X":Xva, "y":yva, "W_list":W_list, "A_all":A_all})
-    print(f"[dataset] cached to {ddir} | train {np.bincount(ytr)} | val {np.bincount(yva)}")
-    return X, y, W_list, A_all
-
-
-
-# ---------- Main ----------
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", type=str, required=True, help="YAML config file")
-    args = parser.parse_args()
-
-    with open(args.config, "r") as f:
-        cfg = yaml.safe_load(f)
-
-    noise = cfg.get("noise", "normal")
-    eta = cfg.get("eta", 1.0)
-    seed = cfg.get("seed", 0)
-    model_intra = cfg.get("model_intra", "ER")
-    model_inter = cfg.get("model_inter", "ER")
-
-    outdir = "runs"
-    os.makedirs(outdir, exist_ok=True)
-
-    for exp_id, exp in enumerate(cfg["experiments"]):
-        T = exp["n"]                     # sequence length
-        d = exp["d"]; p = exp["p"]
-        k_intra = exp["k_intra"]; k_inter = exp["k_inter"]
-        num_samples = exp.get("num_samples", 200)  # NEW: number of sequences
-
-        # Generate dataset
-        X, y, W_list, A_all = generate_dataset(
-            num_samples=num_samples, T=T, d=d, p=p,
-            k_intra=k_intra, k_inter=k_inter,
-            model_intra=model_intra, model_inter=model_inter,
-            noise=noise, eta=eta, seed=seed + exp_id * 10
-        )
-
-        # Split into train/val
-        X_train, X_val, y_train, y_val = train_test_split(
-            X, y, test_size=0.2, random_state=seed, stratify=y
-        )
-
-        # Save as PKL
-        dataset_name = f"dbn_ns{num_samples}_T{T}_d{d}_p{p}_{model_intra}{k_intra}_{model_inter}{k_inter}"
-        exp_dir = os.path.join(outdir, dataset_name)
-        os.makedirs(exp_dir, exist_ok=True)
-
-        with open(os.path.join(exp_dir, "train.pkl"), "wb") as f:
-            pickle.dump({"X": X_train, "y": y_train,
-                         "W_list": W_list, "A_all": A_all}, f)
-
-        with open(os.path.join(exp_dir, "val.pkl"), "wb") as f:
-            pickle.dump({"X": X_val, "y": y_val,
-                         "W_list": W_list, "A_all": A_all}, f)
-
-        # Print class distribution
-        print(f"[✓] {dataset_name}")
-        print("  Train class distribution:", np.bincount(y_train))
-        print("  Val   class distribution:", np.bincount(y_val))
