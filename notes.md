@@ -15,7 +15,7 @@ We simulate **Dynamic Bayesian Networks (DBNs)** with intra- and inter-slice dep
   $$
 
   is a DAG within each time slice, with edges sampled from an Erdős–Rényi (ER) or Barabási–Albert (BA) model.  
-  Edge weights are either positive (class 1) or negative (class 0), and the **label** for each sequence is determined by the sign of intra-slice edges.
+  Edge weights are either positive (class 1) or negative (class 0), and the **label** for each sequence is determined by the presence of absence of additive noise, past the half time-sequence (more details can be checked in the [codebase](https://github.com/visriv/grats-xai/blob/master/src/datasets/synthetic_dbn.py))
 
 - **Inter-slice structure**:  
   For lag $$ \ell \in \{1, \dots, p\} $$,  
