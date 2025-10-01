@@ -1,4 +1,4 @@
-# GrATS-XAI: Graph-based Attributions for Time Series Explainability
+  # GrATS-XAI: Graph-based Attributions for Time Series Explainability
 GrATS-XAI introduces a framework for graph-based attributions in time series models, bridging saliency methods to graphs. By using the post-hoc explainers to generate a structured graph, it enables understanding and evaluation of feature interaction and relevance in temporal modelling.
 
 ---
@@ -42,8 +42,19 @@ pip install -r requirements.txt
 ## 🚀 Usage
 All supported in the config
 
+Quick check (debugging)
 ```
 python scripts/pipeline.py --config configs/pipeline_quick.yaml
+```
+
+Complete Run
+```
+python scripts/pipeline.py --config configs/pipeline.yaml
+```
+
+Compile and aggregate the runs to visualize
+```
+python scripts/agg_results.py
 ```
 
 ### 1. Generate synthetic data
@@ -59,7 +70,7 @@ runs/dbn_n{params}/
 ### 2. Train a model
 
 
-### 3. Run explainability
+### 3. Run explanability
 
 Choose an explainer:
 
@@ -67,6 +78,12 @@ Choose an explainer:
     # TimeRISE
 // TODO:
   Integrated Hessians
+  DeepLIFT
+  Timex++ etc.
+
+### 4. Asymmetric Perturbation Response to estimate W_hat (p copies for the lag)
+
+### 5. Attribution Refinement using graph
 
 ## 📊 Example Output
 
