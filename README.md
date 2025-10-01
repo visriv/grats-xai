@@ -42,8 +42,19 @@ pip install -r requirements.txt
 ## 🚀 Usage
 All supported in the config
 
+Quick check (debugging)
 ```
 python scripts/pipeline.py --config configs/pipeline_quick.yaml
+```
+
+Complete Run
+```
+python scripts/pipeline.py --config configs/pipeline.yaml
+```
+
+Compile and aggregate the runs to visualize
+```
+python scripts/agg_results.py
 ```
 
 ### 1. Generate synthetic data
