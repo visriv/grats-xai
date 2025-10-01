@@ -36,17 +36,18 @@ def generate_intra_slice(d, k=2, model="ER", seed=0):
     mask = A > 0
     n_edges = mask.sum()
     
+    # Note: this is not sequence/class label : just for different kinds of weights
     if n_edges > 0:
-        # choose either negative or positive class consistently
-        label = rng.integers(0, 2)  # 0=negative class, 1=positive class
-        if label == 0:
+      
+        weight_label = rng.integers(0, 2)  
+        if weight_label == 0:
             weights = rng.uniform(-2.0, -0.5, size=n_edges)
         else:
             weights = rng.uniform(0.5, 2.0, size=n_edges)
         W[mask] = weights
     else:
-        label = 0
-    return W, label # W is d x d
+        weight_label = 0
+    return W # W is d x d
 
 
 # ---------- Inter-slice DAGs ----------

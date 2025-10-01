@@ -26,9 +26,9 @@ def aggregate_runs(runs_root="runs"):
                 row = {
                     "dataset": ds,
                     "dim (d)": d,
-                    "k1": k1,
-                    "k2": k2,
-                    "T": T,
+                    "k1": int(k1),
+                    "k2": int(k2),
+                    "T": int(T),
                     "model": model,
                     "explainer": expl,  # keep explainer if it exists
                     "roc_auc": global_metrics.get("roc_auc", None),
@@ -47,24 +47,48 @@ def aggregate_runs(runs_root="runs"):
 def plot_metric_grid(df, metric, fig, k1_values, k2_values, T_values, metric_title):
     """
     Plot the grid of subplots for each combination of k1, k2, and T.
+    Group rows so that all subplots with the same T are stacked together.
     """
-    gs = GridSpec(len(k1_values) * len(T_values), len(k2_values), figure=fig)
+    # Total rows = len(T_values) * len(k1_values)
+    total_rows = len(T_values) * len(k1_values)
+    gs = GridSpec(total_rows, len(k2_values), figure=fig)
 
     for i, k1 in enumerate(k1_values):
         for j, k2 in enumerate(k2_values):
             for t_idx, T in enumerate(T_values):
-                ax_idx = i * len(T_values) + t_idx  # Calculate index for grid
-                ax = fig.add_subplot(gs[ax_idx, j])  # Place subplot in grid
-                # Filter data for current k1, k2, and T combination
-                filtered_df = df[(df['k1'] == str(k1)) & (df['k2'] == str(k2)) & (df['T'] == str(T))]
+                # Group by T first, then k1
+                ax_idx = t_idx * len(k1_values) + i
+                ax = fig.add_subplot(gs[ax_idx, j])
 
-                # Plot the data for this specific k1, k2, and T
-                sns.lineplot(data=filtered_df, x="dim (d)", y=metric, ax=ax, hue="model", style="model", markers=True)
-                ax.set_title(f'k1={k1}, k2={k2}, T={T}')
+                # Filter data for current k1, k2, T
+                filtered_df = df[
+                    (df['k1'] == int(k1)) & 
+                    (df['k2'] == int(k2)) & 
+                    (df['T'] == int(T))
+                ]
+
+                # Ensure dim(d) is numeric and sorted
+                filtered_df = filtered_df.copy()
+                filtered_df["dim (d)"] = filtered_df["dim (d)"].astype(int)
+                filtered_df = filtered_df.sort_values("dim (d)")
+
+                # Plot lineplot
+                if not filtered_df.empty:
+                    sns.lineplot(
+                        data=filtered_df, 
+                        x="dim (d)", 
+                        y=metric, 
+                        ax=ax, 
+                        hue="model", 
+                        style="model", 
+                        markers=True
+                    )
+                ax.set_title(f'ER{k2}, T={T}', fontsize=9)
                 ax.grid(True, which='both', linestyle='--', linewidth=0.5)
                 ax.set_xlabel('Number of Nodes (d)')
-                ax.set_ylabel(metric_title)
-                ax.legend(title="Model", loc='best')
+                ax.set_ylabel(f"{metric_title} (ER{k1})")
+                ax.legend(title="Model", loc='best', fontsize=7)
+
 
 if __name__ == "__main__":
     df = aggregate_runs("runs")
@@ -90,6 +114,9 @@ if __name__ == "__main__":
     k2_values = df["k2"].unique()  # Unique values of k2
     T_values = df["T"].unique()  # Unique values of T
 
+    print(k1_values)
+    print(k2_values)
+    
     for metric in metrics:
         # Create a figure for this metric
         fig = plt.figure(figsize=(15, 18))
