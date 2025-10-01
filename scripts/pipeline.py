@@ -208,8 +208,7 @@ def run_pipeline(cfg_path):
                     auroc_drops = np.load(auroc_drop_file)  # or pickle.load for .pkl
                 else:
                     # Evaluate AUROC drop after occluding top-K salient points
-                    auroc_drops = evaluate_auroc_drop(model, X_eval, targets.cpu().numpy(), explainer_fn, expl_kwargs, auroc_ks)
-
+                    auroc_drops = evaluate_auroc_drop(model, X_eval, targets.cpu().numpy(), attr_batch, auroc_ks, plot_dir)
                     # Save AUROC drops to file (as .npy or .pkl)
                     np.save(auroc_drop_file, auroc_drops)  # Or use pickle.dump for .pkl
                     print(f"[saved] AUROC drop results for {expl_name} saved to {auroc_drop_file}")
