@@ -5,12 +5,11 @@ name: syn_dbn_pipeline
 seed: 0
 noise: normal   # "normal" | "exp"
 eta: 1.5
-model_intra: ER
+model_intra: ER # can be ER or BA
 model_inter: ER
 max_eval_samples: 50 
 eval_batch_size: 32
-data:
-  experiments:  
+
 data:
   experiments:
     - {num_samples: 1000, n: 500, d: 5,   p: 3, k_intra: 4, k_inter: 1}

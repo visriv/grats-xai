@@ -262,7 +262,7 @@ def run_pipeline(cfg_path):
                     title=f"Graph recovery (GLOBAL)"
                 )
 
-                # 5) Laplacian refinement of MEAN attribution using GLOBAL graph
+                # 5) Laplacian refinement of MEAN attribution using GLOBAL graph #TODO: why is it mean? 
                 W_feat_global = W_hat_global.sum(axis=-1)               # (D,D)
                 attr_ref_mean = laplacian_refine_closed_form(attr_mean, W_feat_global, lam)  # (D,T)
                 np.save(os.path.join(attr_dir, "attr_refined_mean.npy"), attr_ref_mean)
