@@ -70,7 +70,7 @@ def evaluate_auroc_drop(model, X_eval, y_eval, attr_batch, auroc_ks=[5, 10, 20, 
             probs = torch.softmax(logits, dim=1)[:, 1].cpu().numpy()  # Class probabilities for class 1
 
         # Step 3.3: Calculate AUROC score for original and occluded
-        original_probs = torch.softmax(model(X_eval), dim=1)[:, 1].cpu().numpy()
+        original_probs = torch.softmax(model(X_eval), dim=1)[:, 1].detach().cpu().numpy()
         
         # Calculate AUROC for both original and occluded
         auroc_original = roc_auc_score(y_eval, original_probs)
@@ -95,12 +95,12 @@ def save_occlusion_plots(original, occluded, sample_idx, plot_dir):
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
     
     # Plot original sample
-    ax[0].imshow(original, cmap='viridis', aspect='auto')
+    ax[0].imshow(original.detach().cpu().numpy(), cmap='viridis', aspect='auto')
     ax[0].set_title(f"Original Sample {sample_idx}")
     ax[0].axis('off')
 
     # Plot occluded sample
-    ax[1].imshow(occluded, cmap='viridis', aspect='auto')
+    ax[1].imshow(occluded.detach().cpu().numpy(), cmap='viridis', aspect='auto')
     ax[1].set_title(f"Occluded Sample {sample_idx}")
     ax[1].axis('off')
 

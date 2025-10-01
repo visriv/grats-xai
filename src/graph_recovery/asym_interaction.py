@@ -24,13 +24,19 @@ def asymmetric_interaction_response(model, x, A, target, max_lag, rho=1.0, S=8, 
     W_hat = np.zeros((D, D, L))
     x = x.to(device)
 
-    for p in range(D):
-        for q in range(D):
+
+    from tqdm import tqdm
+
+    # Assuming L, D, and S are defined
+    # Nested loops with tqdm
+    for p in tqdm(range(D), desc="Processing p", leave=True):  # Outer loop for p
+        for q in tqdm(range(D), desc="Processing q", leave=False):  # Nested loop for q
             if p == q:
                 continue
             for ell in range(L):
                 vals = []
-                for s in range(S):
+                for s in tqdm(range(S), desc="Processing s", leave=False):  # Innermost loop for s
+
                     # mask for all batches, same shape as x
                     mask = torch.ones_like(x)
                     mask[:, p, :T-ell] = 0.0  # perturb p at valid time indices
