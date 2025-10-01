@@ -40,15 +40,13 @@ pip install -r requirements.txt
 
 
 ## 🚀 Usage
+All supported in the config
+
+```
+python scripts/pipeline.py --config configs/pipeline_quick.yaml
+```
+
 ### 1. Generate synthetic data
-
-Datasets are generated using configs/data_gen.yaml.
-This produces .pkl train/val splits with balanced class labels.
-
-
-```
-python src/datasets/synthetic_dbn.py --config configs/data_gen.yaml
-```
 
 Outputs are saved under:
 
@@ -60,17 +58,13 @@ runs/dbn_n{params}/
 ```
 ### 2. Train a model
 
-Example with LSTM:
-```
-python script/train_clasifier,py --config configs/train.yaml
-```
 
 ### 3. Run explainability
 
 Choose an explainer:
 
---method ig       # Integrated Gradients
---method timerise # TimeRISE
+    # Integrated Gradients
+    # TimeRISE
 // TODO:
   Integrated Hessians
 
