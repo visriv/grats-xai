@@ -140,7 +140,7 @@ def generate_dataset(num_samples=200, T=500, d=5, p=1,
     """
 
     # For simplicity, generate a single intra/inter DAG structure shared across samples
-    W, _ = generate_intra_slice(d, k=k_intra, model=model_intra, seed=seed)
+    W = generate_intra_slice(d, k=k_intra, model=model_intra, seed=seed)
     A_list = generate_inter_slice(d, k=k_inter, p=p,
                                   model=model_inter, eta=eta, seed=seed + 1)
 

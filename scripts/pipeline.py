@@ -157,42 +157,49 @@ def run_pipeline(cfg_path):
                 plot_dir  = ensure_dir(os.path.join(run_dir, "plots"))
 
                 metr_file = os.path.join(metr_dir, "metrics.json")
-                if os.path.isfile(metr_file):
-                    log.info(f"[skip] {ds_name} | {model_name} | {expl_name} already done.")
-                    continue
+                attr_npz = os.path.join(attr_dir, "attr_base_summary.npz")
 
-                # ------------------ batch eval config ------------------
-                max_eval = int(CFG.get("max_eval_samples", len(Xva)))
-                idxs     = np.arange(min(len(Xva), max_eval))
-                eval_bs  = int(CFG.get("eval_batch_size", 128))
-                viz_k    = int(CFG.get("viz_k", 6))
-                log.info(f"[explainer] {expl_name}: evaluating {len(idxs)} samples in batches of {eval_bs}")
+                # 1.1) ------------------ Explanation ------------------
 
-                # (N_eval, D, T) on device
-                X_eval = torch.from_numpy(Xva[idxs]).float().to(device)
+                if os.path.isfile(attr_npz):
+                    log.info(f"[skip] {ds_name} | {model_name} | {expl_name} explanation already done.")
+                    log.info(f"[skip] {ds_name} | {model_name} | {expl_name} moving to evaluation.")
+                else:
 
-                # 1) forward once to get predicted targets per sample
-                with torch.no_grad():
-                    logits  = model(X_eval)                         # (N_eval, C)
-                    targets = logits.argmax(dim=1)                  # (N_eval,)
-                    base_p  = torch.softmax(logits, dim=1)
 
-                # 2) Explanation for the whole set (in chunks)
-                steps = int(ecfg.get("steps", 32))
-                attr_chunks = []
-                for s in tqdm(range(0, len(idxs), eval_bs), desc=f" {expl_name}", leave=False):
-                    xb = X_eval[s:s+eval_bs]                        # (b, D, T)
-                    tb = targets[s:s+eval_bs]                       # (b,)
-                    attr_b = explainer_fn(model, xb, target=tb, **expl_kwargs) # (b, D, T)
-                    if isinstance(attr_b, torch.Tensor):
-                        attr_b = attr_b.detach().cpu().numpy()
-                    attr_chunks.append(attr_b)
-                attr_batch = np.concatenate(attr_chunks, axis=0)          # (N_eval, D, T)
 
-                # Save compact attribution summary (mean/std) + plots
-                attr_mean = attr_batch.mean(axis=0)                       # (D, T)
-                attr_std  = attr_batch.std(axis=0)                        # (D, T)
-                np.savez(os.path.join(attr_dir, "attr_base_summary.npz"), mean=attr_mean, std=attr_std)
+                    # ------------------ batch eval config ------------------
+                    max_eval = int(CFG.get("max_eval_samples", len(Xva)))
+                    idxs     = np.arange(min(len(Xva), max_eval))
+                    eval_bs  = int(CFG.get("eval_batch_size", 128))
+                    viz_k    = int(CFG.get("viz_k", 6))
+                    log.info(f"[explainer] {expl_name}: evaluating {len(idxs)} samples in batches of {eval_bs}")
+
+                    # (N_eval, D, T) on device
+                    X_eval = torch.from_numpy(Xva[idxs]).float().to(device)
+
+                    # 1) forward once to get predicted targets per sample
+                    with torch.no_grad():
+                        logits  = model(X_eval)                         # (N_eval, C)
+                        targets = logits.argmax(dim=1)                  # (N_eval,)
+                        base_p  = torch.softmax(logits, dim=1)
+
+                    # 2) Explanation for the whole set (in chunks)
+                    steps = int(ecfg.get("steps", 32))
+                    attr_chunks = []
+                    for s in tqdm(range(0, len(idxs), eval_bs), desc=f" {expl_name}", leave=False):
+                        xb = X_eval[s:s+eval_bs]                        # (b, D, T)
+                        tb = targets[s:s+eval_bs]                       # (b,)
+                        attr_b = explainer_fn(model, xb, target=tb, **expl_kwargs) # (b, D, T)
+                        if isinstance(attr_b, torch.Tensor):
+                            attr_b = attr_b.detach().cpu().numpy()
+                        attr_chunks.append(attr_b)
+                    attr_batch = np.concatenate(attr_chunks, axis=0)          # (N_eval, D, T)
+
+                    # Save compact attribution summary (mean/std) + plots
+                    attr_mean = attr_batch.mean(axis=0)                       # (D, T)
+                    attr_std  = attr_batch.std(axis=0)                        # (D, T)
+                    np.savez(os.path.join(attr_dir, "attr_base_summary.npz"), mean=attr_mean, std=attr_std)
 
 
                 # 2.1) ------------------ AUROC Drop Evaluation ------------------
@@ -221,38 +228,30 @@ def run_pipeline(cfg_path):
                 # 3) GLOBAL lagged interactions from the whole eval set (vectorized)
                 # asymmetric_interaction_response expects:
                 #   x: torch.Tensor (B,D,T)   attr_batch: np.ndarray (B,D,T)   target: torch.LongTensor (B,)
-                W_hat_global = asymmetric_interaction_response(
-                    model,
-                    X_eval,                           # (N_eval, D, T) tensor on device
-                    attr_batch,                          # (N_eval, D, T) numpy
-                    targets,                          # (N_eval,) tensor on device
-                    max_lag=max_lag, rho=rho, S=S, device=device
-                )                                     # -> (D, D, L) (ensure that max_lag should be p, hence L = p+1)
-                np.save(os.path.join(graph_dir, "W_hat_global.npy"), W_hat_global)
+                w_hat_file = os.path.join(graph_dir, "W_hat_global.npy")
+                if os.path.isfile(w_hat_file):
+                    log.info(f"[skip] {ds_name} | {model_name} | graph estimation already done ")
+                else:                
+                    W_hat_global = asymmetric_interaction_response(
+                        model,
+                        X_eval,                           # (N_eval, D, T) tensor on device
+                        attr_batch,                          # (N_eval, D, T) numpy
+                        targets,                          # (N_eval,) tensor on device
+                        max_lag=max_lag, rho=rho, S=S, device=device
+                    )                                     # -> (D, D, L) (ensure that max_lag should be p, hence L = p+1)
+                    # Plot global feature graph (sum over lags)
+                    plot_graph(
+                        W_hat_global.sum(axis=-1),
+                        os.path.join(plot_dir, "W_hat_global_feat.png"),
+                        title=f"Global Feature Graph ({expl_name})"
+                    )   
+                    np.save(os.path.join(graph_dir, "W_hat_global.npy"), W_hat_global)
 
-                # Plot global feature graph (sum over lags)
-                plot_graph(
-                    W_hat_global.sum(axis=-1),
-                    os.path.join(plot_dir, "W_hat_global_feat.png"),
-                    title=f"Global Feature Graph ({expl_name})"
-                )
 
                 # 4) Aggregate ground truth across the same subset and compute global metrics
                 # TODO: redundant code here
                 L_true = len(A_lags_all[0])
                 L_use  = min(L_true, W_hat_global.shape[-1])
-                # print(len(A_lags_all))
-                # print(A_lags_all[0].shape)
-                # print(L_use)
-                # print(len(idxs))
-                # print('W_hat_global.shape:', W_hat_global.shape)
-                # print(A_lags_all[0][0].shape)
-
-                # A_true_global_lags = []
-                # for ell in range(L_use):
-                #     mats = [np.abs(A_lags_all[i][ell]) for i in idxs]        # list of (D,D)
-                #     A_true_global_lags.append(np.mean(np.stack(mats, 0), 0)) # (D,D)
-                # np.save(os.path.join(graph_dir, "A_true_global.npy"), np.stack(A_true_global_lags, axis=-1))
 
                 gr_global = graph_recovery_metrics(W_hat_global[:, :, :L_use], [W_true] + A_lags_all)
 
