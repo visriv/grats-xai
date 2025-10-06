@@ -261,12 +261,14 @@ def run_pipeline(cfg_path):
                     title=f"Graph recovery (GLOBAL)"
                 )
 
-                # 5) Laplacian refinement of MEAN attribution using GLOBAL graph #TODO: why is it mean? 
+                # 5) Laplacian refinement of MEAN attribution using GLOBAL graph 
+                attr_refined_path = os.path.join(graph_dir, "attr_refined.npy")
+                if os.path.isfile(attr_refined_path):
+                    log.info(f"[skip] {ds_name} | {model_name} | {expl_name} attr refinement already already done ")
                 W_feat_global = W_hat_global.sum(axis=-1)               # (D,D)
-                attr_ref_mean = laplacian_refine_closed_form(attr_mean, W_feat_global, lam)  # (D,T)
-                np.save(os.path.join(attr_dir, "attr_refined_mean.npy"), attr_ref_mean)
-                # plot_attribution(attr_ref_mean, os.path.join(plot_dir, "attr_refined_mean.png"),
-                #                 title="Attribution refined (mean)")
+                attr_ref = laplacian_refine_closed_form(attr_batch, W_feat_global, lam)  # (D,T)
+                np.save(os.path.join(attr_dir, "attr_refined.npy"), attr_ref)
+
 
                 # 6) Optional: a few example plots (base + refined via global graph)
                 if viz_k > 0:
@@ -289,7 +291,7 @@ def run_pipeline(cfg_path):
                         "lags_used": list(range(max_lag+1)),
                         "attr_summary": {
                             "mean_path": "attr/attr_base_summary.npz",
-                            "refined_mean_path": "attr/attr_refined_mean.npy"
+                            "refined_path": "attr/attr_refined.npy"
                         }
                     }, f, indent=2, cls=NpEncoder)
 
