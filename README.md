@@ -1,5 +1,5 @@
   # GrATS-XAI: Graph-based Attributions for Time Series Explainability
-GrATS-XAI introduces a framework for graph-based attributions in time series models, bridging saliency methods to graphs. By using the post-hoc explainers to generate a structured graph, it enables understanding and evaluation of feature interaction and relevance in temporal modelling.
+GrATS-XAI introduces a framework for graph-based attributions in time series models, bridging saliency methods to graphs recovery. By using the post-hoc explainers to generate a structured graph, it enables understanding and evaluation of feature interaction and relevance in temporal modelling.
 
 ---
 
